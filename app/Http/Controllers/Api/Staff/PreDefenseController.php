@@ -5,7 +5,9 @@ namespace App\Http\Controllers\Api\Staff;
 use App\Http\Controllers\Controller;
 use App\Models\ArSys\Event;
 use App\Models\ArSys\EventApplicantDefense;
+use App\Models\ArSys\DefenseExaminer;
 use App\Models\ArSys\DefenseExaminerPresence;
+use App\Models\ArSys\Staff;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -168,5 +170,51 @@ class PreDefenseController extends Controller
         }
 
         return response()->json(['success' => true]);
+    }
+
+    public function searchStaff(Request $request)
+    {
+        $query = $request->input('query');
+        if (empty($query)) {
+            return response()->json([]);
+        }
+
+        $staff = Staff::where('code', 'LIKE', "%{$query}%")
+                      ->orWhere('first_name', 'LIKE', "%{$query}%")
+                      ->orWhere('last_name', 'LIKE', "%{$query}%")
+                      ->limit(10)
+                      ->get(['id', 'code', 'first_name', 'last_name']);
+
+        return response()->json($staff);
+    }
+
+    public function addExaminer(Request $request, $participantId)
+    {
+        $request->validate([
+            'staff_id' => 'required|integer|exists:arsys_staff,id',
+        ]);
+
+        $participant = EventApplicantDefense::find($participantId);
+        if (!$participant) {
+            return response()->json(['success' => false, 'message' => 'Participant not found.'], 404);
+        }
+
+        // Check if already an examiner
+        $isExaminer = DefenseExaminer::where('applicant_id', $participantId)
+                                     ->where('examiner_id', $request->staff_id)
+                                     ->exists();
+
+        if ($isExaminer) {
+            return response()->json(['success' => false, 'message' => 'This staff member is already an examiner for this applicant.'], 409);
+        }
+
+        DefenseExaminer::create([
+            'applicant_id' => $participantId,
+            'examiner_id' => $request->staff_id,
+            'event_id' => $participant->event_id,
+            'additional' => 1, // Mark as additionally added
+        ]);
+
+        return response()->json(['success' => true, 'message' => 'Examiner added successfully.']);
     }
 }
