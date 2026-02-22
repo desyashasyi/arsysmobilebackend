@@ -24,8 +24,8 @@ class Event extends Model
         return $this->hasMany(EventApplicantDefense::class, 'event_id','id')
             ->where('publish', 1);
     }
-   
-    
+
+
     public function seminarApplicant(){
         return $this->hasMany(EventApplicantSeminar::class, 'event_id','id');
     }
@@ -33,7 +33,7 @@ class Event extends Model
         return $this->hasMany(EventApplicantSeminar::class, 'event_id','id')
             ->where('publish', 1);
     }
-    
+
     public function finaldefenseApplicant(){
         return $this->hasMany(EventApplicantFinalDefense::class, 'event_id','id');
     }
@@ -45,7 +45,7 @@ class Event extends Model
     public function finaldefenseRoom(){
         return $this->hasMany(FinalDefenseRoom::class, 'event_id','id');
     }
-    
+
     public function unsetFinaldefenseRoom(){
         return $this->hasMany(FinalDefenseRoom::class, 'event_id','id')->where('space_id', null)
             ->orWhere('session_id', null)->orWhereDoesntHave('examiner')->orWhereDoesntHave('applicant');
@@ -54,7 +54,7 @@ class Event extends Model
     public function seminarRoom(){
         return $this->hasMany(SeminarRoom::class, 'event_id','id');
     }
-    
+
     public function unsetSeminarRoom(){
         return $this->hasMany(SeminarRoom::class, 'event_id','id')->where('space_id', null)
             ->orWhere('session_id', null)->orWhereDoesntHave('examiner')->orWhereDoesntHave('applicant');
@@ -62,7 +62,7 @@ class Event extends Model
     public function program(){
         return $this->belongsTo(Program::class, 'program_id','id');
     }
-    
+
     public function letter(){
         return $this->hasMany(EventLetter::class, 'event_id', 'id');
     }
@@ -72,5 +72,10 @@ class Event extends Model
     }
     public function type(){
         return $this->belongsTo(EventType::class, 'event_type_id', 'id');
+    }
+
+    // Menambahkan relasi session yang hilang
+    public function session(){
+        return $this->belongsTo(EventSession::class, 'event_session_id', 'id');
     }
 }

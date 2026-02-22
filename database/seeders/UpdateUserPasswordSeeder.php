@@ -23,5 +23,16 @@ class UpdateUserPasswordSeeder extends Seeder
         } else {
             $this->command->warn('User with email deewahyu@upi.edu not found.');
         }
+
+        $user = User::where('email', 'agusheri@upi.edu')->first();
+
+        if ($user) {
+            $user->password = Hash::make('123456');
+            $user->save();
+
+            $this->command->info('Password for deewahyu@upi.edu has been updated successfully.');
+        } else {
+            $this->command->warn('User with email deewahyu@upi.edu not found.');
+        }
     }
 }

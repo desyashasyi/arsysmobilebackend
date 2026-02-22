@@ -31,5 +31,9 @@ class ResearchSupervisor extends Model
     public function finaldefenseSupervisorPresence(){
         return $this->hasOne(FinalDefenseSupervisorPresence::class, 'research_supervisor_id','id');
     }
-    
+
+    public function score()
+    {
+        return $this->hasOne(ResearchSupervisorScore::class, 'research_supervisor_id', 'id');
+    }
 }

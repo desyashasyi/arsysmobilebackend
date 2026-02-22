@@ -2,7 +2,10 @@
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\RegisterController;
-use App\Http\Controllers\Api\Staff\ResearchController;
+use App\Http\Controllers\Api\Staff\SuperviseController;
+use App\Http\Controllers\Api\Staff\ReviewController;
+use App\Http\Controllers\Api\Staff\PreDefenseController;
+use App\Http\Controllers\Api\Staff\FinalDefenseController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -15,18 +18,39 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [LoginController::class, 'logout']);
     Route::get('/user', [LoginController::class, 'me']);
 
-    // Rute untuk Staff Research
+    // Rute untuk Staff
     Route::prefix('staff')->name('staff.')->group(function () {
-        Route::get('/researches', [ResearchController::class, 'index'])->name('researches.index');
-        Route::get('/researches/{id}', [ResearchController::class, 'show'])->name('researches.show');
-        Route::get('/researches/{id}/approvals', [ResearchController::class, 'getApprovals'])->name('researches.approvals');
-        Route::post('/approvals/{approvalId}/approve', [ResearchController::class, 'approve'])->name('approvals.approve');
-        Route::get('/researches/{id}/events', [ResearchController::class, 'getEvents'])->name('researches.events');
+        // Rute untuk Supervisi
+        Route::prefix('supervise')->name('supervise.')->group(function () {
+            Route::get('/', [SuperviseController::class, 'index'])->name('index');
+            Route::get('/{id}', [SuperviseController::class, 'show'])->name('show');
+            Route::get('/{id}/approvals', [SuperviseController::class, 'getApprovals'])->name('approvals');
+            Route::post('/approvals/{approvalId}/approve', [SuperviseController::class, 'approve'])->name('approve');
+        });
 
         // Rute untuk Review
-        Route::get('/reviews', [ResearchController::class, 'getReviews'])->name('reviews.index');
-        Route::get('/reviews/{id}', [ResearchController::class, 'getReviewDetail'])->name('reviews.show');
-        // Mengubah {reviewId} menjadi {researchId} agar lebih akurat
-        Route::post('/reviews/{researchId}/submit', [ResearchController::class, 'submitReview'])->name('reviews.submit');
+        Route::prefix('review')->name('review.')->group(function () {
+            Route::get('/', [ReviewController::class, 'index'])->name('index');
+            Route::get('/{id}', [ReviewController::class, 'show'])->name('show');
+            Route::post('/{researchId}/submit', [ReviewController::class, 'submit'])->name('submit');
+        });
+
+        // Rute untuk Pre-Defense
+        Route::prefix('pre-defense')->name('pre-defense.')->group(function () {
+            Route::get('/', [PreDefenseController::class, 'index'])->name('index');
+            Route::get('/{id}/participants', [PreDefenseController::class, 'getParticipants'])->name('participants');
+            Route::get('/participant/{id}', [PreDefenseController::class, 'getParticipantDetail'])->name('participant.detail');
+            Route::post('/examiner/{id}/presence', [PreDefenseController::class, 'toggleExaminerPresence'])->name('examiner.presence');
+            Route::post('/participant/{id}/score', [PreDefenseController::class, 'submitScore'])->name('participant.score');
+        });
+
+        // Rute untuk Final-Defense
+        Route::prefix('final-defense')->name('final-defense.')->group(function () {
+            Route::get('/', [FinalDefenseController::class, 'index'])->name('index');
+            Route::get('/{id}/detail', [FinalDefenseController::class, 'getDetail'])->name('detail');
+        });
     });
+
+    // Staff lookup for frontend autocomplete/search
+    Route::get('/staff/search', [\App\Http\Controllers\Api\Staff\ResearchController::class, 'searchStaff'])->name('staff.search');
 });

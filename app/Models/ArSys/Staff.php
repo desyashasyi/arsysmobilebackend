@@ -11,6 +11,12 @@ class Staff extends Model
     protected $guarded = [];
     protected $fillable = [];
     protected $table = 'arsys_staff';
+
+    public function getNameAttribute()
+    {
+        return trim($this->first_name . ' ' . $this->last_name);
+    }
+
     public function program(){
         return $this->belongsTo(Program::class, 'program_id','id' );
     }
@@ -72,7 +78,7 @@ class Staff extends Model
                     });
                 });
     }
-  
+
     public function firstDefenseExaminer(){
         return $this->hasMany(DefenseExaminer::class, 'examiner_id', 'id')->where('order',1);
     }
