@@ -137,19 +137,25 @@ class PreDefenseController extends Controller
 
         $supervisors = $participant->research->supervisor->map(function ($supervisor) {
             $staff = $supervisor->staff;
+            $score = $supervisor->defenseSupervisorPresence->score ?? null;
             return [
                 'name' => $staff ? trim($staff->first_name . ' ' . $staff->last_name) : 'Unknown Supervisor',
                 'code' => $staff->code ?? 'N/A',
+                'score' => $score,
+                'score_color' => is_null($score) ? 'danger' : 'success',
             ];
         });
 
         $examiners = $participant->defenseExaminer->map(function ($examiner) {
             $staff = $examiner->staff;
+            $score = $examiner->defenseExaminerPresence->score ?? null;
             return [
                 'id' => $examiner->id,
                 'name' => $staff ? trim($staff->first_name . ' ' . $staff->last_name) : 'Unknown Examiner',
                 'code' => $staff->code ?? 'N/A',
                 'is_present' => $examiner->defenseExaminerPresence ? true : false,
+                'score' => $score,
+                'score_color' => is_null($score) ? 'danger' : 'success',
             ];
         });
 
@@ -175,6 +181,7 @@ class PreDefenseController extends Controller
             'is_examiner_present' => $isExaminerPresent,
             'my_score' => $myScore,
             'my_remark' => $myRemark,
+            'my_score_color' => is_null($myScore) ? 'danger' : 'success',
         ];
 
         return response()->json(['success' => true, 'data' => $data]);
