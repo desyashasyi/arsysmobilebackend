@@ -7,7 +7,9 @@ use App\Models\ArSys\Event;
 use App\Models\ArSys\EventApplicantDefense;
 use App\Models\ArSys\DefenseExaminer;
 use App\Models\ArSys\DefenseExaminerPresence;
+use App\Models\ArSys\DefenseScoreGuide;
 use App\Models\ArSys\Staff;
+use App\Models\ArSys\DefenseSupervisorPresence;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -105,6 +107,7 @@ class PreDefenseController extends Controller
         $participant = EventApplicantDefense::with([
             'research.student.program',
             'research.supervisor.staff',
+            'research.supervisor.defenseSupervisorPresence',
             'defenseExaminer.staff',
             'defenseExaminer.defenseExaminerPresence',
             'space',
@@ -116,6 +119,21 @@ class PreDefenseController extends Controller
         }
 
         $isSupervisor = $participant->research->supervisor->contains('supervisor_id', $staffId);
+        $examiner = $participant->defenseExaminer->where('examiner_id', $staffId)->first();
+        $isExaminer = $examiner ? true : false;
+        $isExaminerPresent = $isExaminer && $examiner->defenseExaminerPresence;
+
+        $myScore = null;
+        $myRemark = null;
+
+        if ($isSupervisor) {
+            $supervisor = $participant->research->supervisor->where('supervisor_id', $staffId)->first();
+            $myScore = $supervisor->defenseSupervisorPresence->score ?? null;
+            $myRemark = $supervisor->defenseSupervisorPresence->remark ?? null;
+        } elseif ($isExaminerPresent) {
+            $myScore = $examiner->defenseExaminerPresence->score ?? null;
+            $myRemark = $examiner->defenseExaminerPresence->remark ?? null;
+        }
 
         $supervisors = $participant->research->supervisor->map(function ($supervisor) {
             $staff = $supervisor->staff;
@@ -127,12 +145,11 @@ class PreDefenseController extends Controller
 
         $examiners = $participant->defenseExaminer->map(function ($examiner) {
             $staff = $examiner->staff;
-            $presence = $examiner->defenseExaminerPresence;
             return [
                 'id' => $examiner->id,
                 'name' => $staff ? trim($staff->first_name . ' ' . $staff->last_name) : 'Unknown Examiner',
                 'code' => $staff->code ?? 'N/A',
-                'is_present' => $presence ? true : false,
+                'is_present' => $examiner->defenseExaminerPresence ? true : false,
             ];
         });
 
@@ -154,6 +171,10 @@ class PreDefenseController extends Controller
                 'session_time' => $participant->session->time ?? 'N/A',
             ],
             'is_supervisor' => $isSupervisor,
+            'is_examiner' => $isExaminer,
+            'is_examiner_present' => $isExaminerPresent,
+            'my_score' => $myScore,
+            'my_remark' => $myRemark,
         ];
 
         return response()->json(['success' => true, 'data' => $data]);
@@ -199,7 +220,6 @@ class PreDefenseController extends Controller
             return response()->json(['success' => false, 'message' => 'Participant not found.'], 404);
         }
 
-        // Check if already an examiner
         $isExaminer = DefenseExaminer::where('applicant_id', $participantId)
                                      ->where('examiner_id', $request->staff_id)
                                      ->exists();
@@ -212,9 +232,43 @@ class PreDefenseController extends Controller
             'applicant_id' => $participantId,
             'examiner_id' => $request->staff_id,
             'event_id' => $participant->event_id,
-            'additional' => 1, // Mark as additionally added
+            'additional' => 1,
         ]);
 
         return response()->json(['success' => true, 'message' => 'Examiner added successfully.']);
+    }
+
+    public function getScoreGuide()
+    {
+        $scoreGuide = DefenseScoreGuide::orderBy('sequence', 'ASC')->get();
+        return response()->json($scoreGuide);
+    }
+
+    public function submitScore(Request $request, $participantId)
+    {
+        $user = Auth::user();
+        $staffId = $user->staff->id;
+
+        $participant = EventApplicantDefense::find($participantId);
+        if (!$participant) {
+            return response()->json(['success' => false, 'message' => 'Participant not found'], 404);
+        }
+
+        $supervisor = $participant->research->supervisor->where('supervisor_id', $staffId)->first();
+        if ($supervisor) {
+            $supervisor->defenseSupervisorPresence()->updateOrCreate(
+                ['research_supervisor_id' => $supervisor->id],
+                ['score' => $request->score, 'remark' => $request->remark]
+            );
+        }
+
+        $examiner = $participant->defenseExaminer->where('examiner_id', $staffId)->first();
+        if ($examiner && $examiner->defenseExaminerPresence) {
+            $examiner->defenseExaminerPresence->score = $request->score;
+            $examiner->defenseExaminerPresence->remark = $request->remark;
+            $examiner->defenseExaminerPresence->save();
+        }
+
+        return response()->json(['success' => true]);
     }
 }

@@ -43,6 +43,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('/examiner/{id}/presence', [PreDefenseController::class, 'toggleExaminerPresence'])->name('examiner.presence');
             Route::get('/staff/search', [PreDefenseController::class, 'searchStaff'])->name('staff.search');
             Route::post('/participant/{id}/add-examiner', [PreDefenseController::class, 'addExaminer'])->name('participant.add_examiner');
+            Route::get('/score-guide', [PreDefenseController::class, 'getScoreGuide'])->name('score_guide');
+            Route::post('/participant/{id}/score', [PreDefenseController::class, 'submitScore'])->name('participant.score');
         });
 
         // Rute untuk Final-Defense
