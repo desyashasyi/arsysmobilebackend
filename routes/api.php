@@ -50,7 +50,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // Rute untuk Final-Defense
         Route::prefix('final-defense')->name('final-defense.')->group(function () {
             Route::get('/', [FinalDefenseController::class, 'index'])->name('index');
-            Route::get('/{id}/detail', [FinalDefenseController::class, 'getDetail'])->name('detail');
+            Route::get('/{eventId}/rooms', [FinalDefenseController::class, 'getRooms'])->name('rooms');
+            Route::get('/room/{roomId}', [FinalDefenseController::class, 'getRoomDetail'])->name('room.detail');
         });
     });
 

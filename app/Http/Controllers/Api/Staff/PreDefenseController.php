@@ -10,6 +10,7 @@ use App\Models\ArSys\DefenseExaminerPresence;
 use App\Models\ArSys\DefenseScoreGuide;
 use App\Models\ArSys\Staff;
 use App\Models\ArSys\DefenseSupervisorPresence;
+use App\Models\ArSys\ResearchMilestone;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -189,12 +190,26 @@ class PreDefenseController extends Controller
 
     public function toggleExaminerPresence(Request $request, $examinerId)
     {
+        $examiner = DefenseExaminer::with('defenseApplicant.research')->find($examinerId);
+        if (!$examiner) {
+            return response()->json(['success' => false, 'message' => 'Examiner not found.'], 404);
+        }
+
         $presence = DefenseExaminerPresence::where('defense_examiner_id', $examinerId)->first();
 
         if ($presence) {
             $presence->delete();
         } else {
             DefenseExaminerPresence::create(['defense_examiner_id' => $examinerId]);
+
+            $research = $examiner->defenseApplicant->research;
+            $scheduledMilestone = ResearchMilestone::where('code', 'PRE-DEF-SCH')->first();
+            $doneMilestone = ResearchMilestone::where('code', 'PRE-DEF-DONE')->first();
+
+            if ($research && $scheduledMilestone && $doneMilestone && $research->milestone_id == $scheduledMilestone->id) {
+                $research->milestone_id = $doneMilestone->id;
+                $research->save();
+            }
         }
 
         return response()->json(['success' => true]);
