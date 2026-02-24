@@ -39,8 +39,6 @@ class FinalDefenseController extends Controller
         $transformedData = $events->map(function ($event) {
             $eventDate = new \DateTime($event->event_date);
             $formattedDate = $eventDate->format('dmy');
-            $programCode = $event->program->code ?? 'EV';
-
             return [
                 'id' => $event->id,
                 'name' => $event->name,
@@ -70,14 +68,52 @@ class FinalDefenseController extends Controller
                     $q->where('supervisor_id', $staffId);
                 });
             })
-            ->with(['space', 'session'])
+            ->with([
+                'space',
+                'session',
+                'moderator',
+                'examiner.staff',
+                'examiner.finalDefenseExaminerPresence',
+                'applicant.research.student.program',
+                'applicant.research.supervisor.staff',
+            ])
             ->get();
 
-        $transformedData = $rooms->map(function ($room) {
+        $transformedData = $rooms->map(function ($room) use ($staffId) {
+            $isExaminer = $room->examiner->contains('examiner_id', $staffId);
+            $isModerator = $room->moderator_id == $staffId;
+
+            $supervisedApplicantIds = $room->applicant->filter(function ($applicant) use ($staffId) {
+                return $applicant->research->supervisor->contains('supervisor_id', $staffId);
+            })->pluck('id');
+
             return [
                 'id' => $room->id,
-                'room_name' => $room->space->name ?? 'N/A',
+                'room_name' => $room->space->code ?? 'N/A',
                 'session_time' => $room->session->time ?? 'N/A',
+                'is_examiner_or_moderator' => $isExaminer || $isModerator,
+                'supervised_applicant_ids' => $supervisedApplicantIds,
+                'moderator' => $room->moderator ? [
+                    'name' => trim($room->moderator->first_name . ' ' . $room->moderator->last_name),
+                    'code' => $room->moderator->code ?? 'N/A',
+                ] : null,
+                'examiners' => $room->examiner->map(function ($examiner) {
+                    $staff = $examiner->staff;
+                    return [
+                        'id' => $examiner->id,
+                        'name' => $staff ? trim($staff->first_name . ' ' . $staff->last_name) : 'Unknown',
+                        'code' => $staff->code ?? 'N/A',
+                        'is_present' => $examiner->finalDefenseExaminerPresence->isNotEmpty(),
+                    ];
+                }),
+                'applicants' => $room->applicant->map(function ($applicant) {
+                    $student = $applicant->research->student;
+                    return [
+                        'id' => $applicant->id,
+                        'student_name' => trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
+                        'student_nim' => $student->number ?? 'N/A',
+                    ];
+                }),
             ];
         });
 
@@ -86,6 +122,8 @@ class FinalDefenseController extends Controller
 
     public function getRoomDetail(Request $request, $roomId)
     {
+        // This can be deprecated or used for a different purpose later
+        // For now, we leave it as is.
         $user = Auth::user();
         if (!$user || !$user->staff) {
             return response()->json(['data' => [], 'message' => 'User is not a staff member.'], 200);
@@ -131,7 +169,7 @@ class FinalDefenseController extends Controller
 
         $data = [
             'room' => [
-                'name' => $room->space->name ?? 'N/A',
+                'name' => $room->space->code ?? 'N/A',
                 'session_time' => $room->session->time ?? 'N/A',
                 'moderator' => $room->moderator ? [
                     'name' => trim($room->moderator->first_name . ' ' . $room->moderator->last_name),
