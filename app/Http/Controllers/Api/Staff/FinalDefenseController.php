@@ -37,11 +37,15 @@ class FinalDefenseController extends Controller
             ->get();
 
         $transformedData = $events->map(function ($event) {
+            $eventDate = new \DateTime($event->event_date);
+            $formattedDate = $eventDate->format('dmy');
+            $programCode = $event->program->code ?? 'EV';
+
             return [
                 'id' => $event->id,
                 'name' => $event->name,
                 'event_date' => $event->event_date,
-                'event_id_string' => $event->event_code,
+                'event_code' => 'PUB-' . $formattedDate . '-' . $event->id,
                 'program_code' => $event->program->code ?? null,
                 'program_abbrev' => $event->program->abbrev ?? null,
             ];
