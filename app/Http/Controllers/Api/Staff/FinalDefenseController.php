@@ -136,12 +136,7 @@ class FinalDefenseController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $validated = $request->validate([
-            'new_moderator_id' => 'required|integer|exists:staff,id',
-        ]);
-
         $room = FinalDefenseRoom::find($roomId);
-
         if (!$room) {
             return response()->json(['message' => 'Room not found'], 404);
         }
@@ -150,11 +145,19 @@ class FinalDefenseController extends Controller
             return response()->json(['message' => 'Only the current moderator can switch roles.'], 403);
         }
 
+        $validated = $request->validate([
+            'new_moderator_id' => 'required|integer',
+        ]);
+
         $newModeratorId = $validated['new_moderator_id'];
 
-        $isExaminerInRoom = $room->examiner()->where('examiner_id', $newModeratorId)->exists();
-        if (!$isExaminerInRoom) {
-            return response()->json(['message' => 'The selected staff is not an examiner in this room.'], 422);
+        // Manual validation
+        $isExaminer = FinalDefenseExaminer::where('event_id', $room->event_id)
+            ->where('examiner_id', $newModeratorId)
+            ->exists();
+
+        if (!$isExaminer) {
+            return response()->json(['message' => 'The selected staff is not a valid examiner for this event.'], 422);
         }
 
         $room->update(['moderator_id' => $newModeratorId]);
