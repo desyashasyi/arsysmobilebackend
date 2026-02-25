@@ -3,11 +3,16 @@
 namespace App\Http\Controllers\Api\Staff;
 
 use App\Http\Controllers\Controller;
+use App\Models\ArSys\DefenseModel;
 use App\Models\ArSys\DefenseScoreGuide;
 use App\Models\ArSys\Event;
+use App\Models\ArSys\FinalDefenseExaminer;
+use App\Models\ArSys\FinalDefenseExaminerPresence;
 use App\Models\ArSys\FinalDefenseRoom;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class FinalDefenseController extends Controller
 {
@@ -93,8 +98,10 @@ class FinalDefenseController extends Controller
                 'room_name' => $room->space->code ?? 'N/A',
                 'session_time' => $room->session->time ?? 'N/A',
                 'is_examiner_or_moderator' => $isExaminer || $isModerator,
+                'is_current_user_moderator' => $isModerator,
                 'supervised_applicant_ids' => $supervisedApplicantIds,
                 'moderator' => $room->moderator ? [
+                    'id' => $room->moderator->id,
                     'name' => trim($room->moderator->first_name . ' ' . $room->moderator->last_name),
                     'code' => $room->moderator->code ?? 'N/A',
                 ] : null,
@@ -102,6 +109,7 @@ class FinalDefenseController extends Controller
                     $staff = $examiner->staff;
                     return [
                         'id' => $examiner->id,
+                        'staff_id' => $staff->id ?? null,
                         'name' => $staff ? trim($staff->first_name . ' ' . $staff->last_name) : 'Unknown',
                         'code' => $staff->code ?? 'N/A',
                         'is_present' => $examiner->finalDefenseExaminerPresence->isNotEmpty(),
@@ -119,6 +127,105 @@ class FinalDefenseController extends Controller
         });
 
         return response()->json(['data' => $transformedData]);
+    }
+
+    public function switchModerator(Request $request, $roomId)
+    {
+        $user = Auth::user();
+        if (!$user || !$user->staff) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $validated = $request->validate([
+            'new_moderator_id' => 'required|integer|exists:staff,id',
+        ]);
+
+        $room = FinalDefenseRoom::find($roomId);
+
+        if (!$room) {
+            return response()->json(['message' => 'Room not found'], 404);
+        }
+
+        if ($room->moderator_id !== $user->staff->id) {
+            return response()->json(['message' => 'Only the current moderator can switch roles.'], 403);
+        }
+
+        $newModeratorId = $validated['new_moderator_id'];
+
+        $isExaminerInRoom = $room->examiner()->where('examiner_id', $newModeratorId)->exists();
+        if (!$isExaminerInRoom) {
+            return response()->json(['message' => 'The selected staff is not an examiner in this room.'], 422);
+        }
+
+        $room->update(['moderator_id' => $newModeratorId]);
+
+        return response()->json(['message' => 'Moderator switched successfully.']);
+    }
+
+    public function toggleExaminerPresence(Request $request, $roomId, $examinerId)
+    {
+        $user = Auth::user();
+        if (!$user || !$user->staff) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $room = FinalDefenseRoom::with('applicant.research.supervisor')->find($roomId);
+        if (!$room || $room->moderator_id !== $user->staff->id) {
+            return response()->json(['message' => 'Only the moderator of this room can update presence.'], 403);
+        }
+
+        $examiner = FinalDefenseExaminer::find($examinerId);
+        if (!$examiner) {
+            return response()->json(['message' => 'Examiner not found.'], 404);
+        }
+        $examinerStaffId = $examiner->examiner_id;
+
+        $existingPresence = FinalDefenseExaminerPresence::where('seminar_examiner_id', $examinerId)
+            ->where('room_id', $roomId)
+            ->exists();
+
+        DB::beginTransaction();
+        try {
+            if ($existingPresence) {
+                FinalDefenseExaminerPresence::where('seminar_examiner_id', $examinerId)
+                    ->where('room_id', $roomId)
+                    ->delete();
+                $message = 'Presence removed.';
+            } else {
+                $presenceData = [];
+                $pubDefenseModelId = DefenseModel::where('code', 'PUB')->first()->id;
+
+                foreach ($room->applicant as $applicant) {
+                    $isSupervisor = $applicant->research->supervisor->contains('supervisor_id', $examinerStaffId);
+
+                    $rowData = [
+                        'event_id' => $room->event_id,
+                        'room_id' => $roomId,
+                        'seminar_examiner_id' => $examinerId,
+                        'applicant_id' => $applicant->id,
+                        'defense_model_id' => $pubDefenseModelId,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ];
+
+                    if ($isSupervisor) {
+                        $rowData['score'] = -1;
+                    }
+
+                    $presenceData[] = $rowData;
+                }
+
+                if (!empty($presenceData)) {
+                    FinalDefenseExaminerPresence::insert($presenceData);
+                }
+                $message = 'Presence marked.';
+            }
+            DB::commit();
+            return response()->json(['message' => $message]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json(['message' => 'Database error: ' . $e->getMessage()], 500);
+        }
     }
 
     public function getScoreGuide()
