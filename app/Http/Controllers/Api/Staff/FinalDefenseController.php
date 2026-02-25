@@ -198,21 +198,16 @@ class FinalDefenseController extends Controller
                 foreach ($room->applicant as $applicant) {
                     $isSupervisor = $applicant->research->supervisor->contains('supervisor_id', $examinerStaffId);
 
-                    $rowData = [
+                    $presenceData[] = [
                         'event_id' => $room->event_id,
                         'room_id' => $roomId,
                         'seminar_examiner_id' => $examinerId,
                         'applicant_id' => $applicant->id,
                         'defense_model_id' => $pubDefenseModelId,
+                        'score' => $isSupervisor ? -1 : null,
                         'created_at' => now(),
                         'updated_at' => now(),
                     ];
-
-                    if ($isSupervisor) {
-                        $rowData['score'] = -1;
-                    }
-
-                    $presenceData[] = $rowData;
                 }
 
                 if (!empty($presenceData)) {
