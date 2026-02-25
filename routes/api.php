@@ -52,6 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/', [FinalDefenseController::class, 'index'])->name('index');
             Route::get('/{eventId}/rooms', [FinalDefenseController::class, 'getRooms'])->name('rooms');
             Route::get('/room/{roomId}', [FinalDefenseController::class, 'getRoomDetail'])->name('room.detail');
+            Route::get('/score-guide', [FinalDefenseController::class, 'getScoreGuide'])->name('score_guide');
         });
     });
 

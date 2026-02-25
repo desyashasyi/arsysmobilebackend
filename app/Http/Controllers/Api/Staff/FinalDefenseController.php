@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Staff;
 
 use App\Http\Controllers\Controller;
+use App\Models\ArSys\DefenseScoreGuide;
 use App\Models\ArSys\Event;
 use App\Models\ArSys\FinalDefenseRoom;
 use Illuminate\Http\Request;
@@ -118,6 +119,12 @@ class FinalDefenseController extends Controller
         });
 
         return response()->json(['data' => $transformedData]);
+    }
+
+    public function getScoreGuide()
+    {
+        $scoreGuide = DefenseScoreGuide::orderBy('sequence', 'ASC')->get();
+        return response()->json($scoreGuide);
     }
 
     public function getRoomDetail(Request $request, $roomId)
