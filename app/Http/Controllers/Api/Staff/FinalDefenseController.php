@@ -133,6 +133,7 @@ class FinalDefenseController extends Controller
                     $myScoreRecord = $allMyScores->get($applicant->id);
                     return [
                         'id' => $applicant->id,
+                        'presence_id' => $myScoreRecord?->id,
                         'student_name' => trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
                         'student_nim' => $student->number ?? 'N/A',
                         'my_score' => $myScoreRecord?->score,
@@ -242,38 +243,26 @@ class FinalDefenseController extends Controller
         }
     }
 
-    public function submitScore(Request $request, $applicantId)
+    public function submitExaminerScore(Request $request, $presenceId)
     {
         $user = Auth::user();
         if (!$user || !$user->staff) {
             return response()->json(['message' => 'Unauthorized'], 401);
         }
-        $staffId = $user->staff->id;
 
         $validated = $request->validate([
-            'score' => 'required|numeric|min:0|max:100',
+            'score' => 'required|numeric|min:1|max:400',
             'remark' => 'nullable|string',
         ]);
 
-        $applicant = EventApplicantFinalDefense::find($applicantId);
-        if (!$applicant) {
-            return response()->json(['message' => 'Applicant not found.'], 404);
-        }
-
-        $examinerEntry = FinalDefenseExaminer::where('event_id', $applicant->event_id)
-            ->where('examiner_id', $staffId)
-            ->first();
-
-        if (!$examinerEntry) {
-            return response()->json(['message' => 'You are not registered as an examiner for this event.'], 403);
-        }
-
-        $presence = FinalDefenseExaminerPresence::where('applicant_id', $applicantId)
-            ->where('seminar_examiner_id', $examinerEntry->id)
-            ->first();
-
+        $presence = FinalDefenseExaminerPresence::find($presenceId);
         if (!$presence) {
-            return response()->json(['message' => 'You are not authorized to score this applicant. Please ensure your presence is marked.'], 403);
+            return response()->json(['message' => 'Presence record not found.'], 404);
+        }
+
+        $examiner = FinalDefenseExaminer::find($presence->seminar_examiner_id);
+        if (!$examiner || $examiner->examiner_id !== $user->staff->id) {
+            return response()->json(['message' => 'You are not authorized to score this applicant.'], 403);
         }
 
         $presence->update([
