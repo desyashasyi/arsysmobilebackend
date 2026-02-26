@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\ArSys\DefenseModel;
 use App\Models\ArSys\DefenseScoreGuide;
 use App\Models\ArSys\Event;
+use App\Models\ArSys\EventApplicantFinalDefense;
 use App\Models\ArSys\FinalDefenseExaminer;
 use App\Models\ArSys\FinalDefenseExaminerPresence;
 use App\Models\ArSys\FinalDefenseRoom;
@@ -85,7 +86,19 @@ class FinalDefenseController extends Controller
             ])
             ->get();
 
-        $transformedData = $rooms->map(function ($room) use ($staffId) {
+        // More direct and efficient way to get scores
+        $myExaminerEntry = FinalDefenseExaminer::where('event_id', $eventId)
+            ->where('examiner_id', $staffId)
+            ->first();
+
+        $allMyScores = collect();
+        if ($myExaminerEntry) {
+            $allMyScores = FinalDefenseExaminerPresence::where('seminar_examiner_id', $myExaminerEntry->id)
+                ->get()
+                ->keyBy('applicant_id');
+        }
+
+        $transformedData = $rooms->map(function ($room) use ($staffId, $allMyScores) {
             $isExaminer = $room->examiner->contains('examiner_id', $staffId);
             $isModerator = $room->moderator_id == $staffId;
 
@@ -115,12 +128,15 @@ class FinalDefenseController extends Controller
                         'is_present' => $examiner->finalDefenseExaminerPresence->isNotEmpty(),
                     ];
                 }),
-                'applicants' => $room->applicant->map(function ($applicant) {
+                'applicants' => $room->applicant->map(function ($applicant) use ($allMyScores) {
                     $student = $applicant->research->student;
+                    $myScoreRecord = $allMyScores->get($applicant->id);
                     return [
                         'id' => $applicant->id,
                         'student_name' => trim(($student->first_name ?? '') . ' ' . ($student->last_name ?? '')),
                         'student_nim' => $student->number ?? 'N/A',
+                        'my_score' => $myScoreRecord?->score,
+                        'my_remark' => $myScoreRecord?->remark,
                     ];
                 }),
             ];
@@ -224,6 +240,48 @@ class FinalDefenseController extends Controller
             DB::rollBack();
             return response()->json(['message' => 'Database error: ' . $e->getMessage()], 500);
         }
+    }
+
+    public function submitScore(Request $request, $applicantId)
+    {
+        $user = Auth::user();
+        if (!$user || !$user->staff) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+        $staffId = $user->staff->id;
+
+        $validated = $request->validate([
+            'score' => 'required|numeric|min:0|max:100',
+            'remark' => 'nullable|string',
+        ]);
+
+        $applicant = EventApplicantFinalDefense::find($applicantId);
+        if (!$applicant) {
+            return response()->json(['message' => 'Applicant not found.'], 404);
+        }
+
+        $examinerEntry = FinalDefenseExaminer::where('event_id', $applicant->event_id)
+            ->where('examiner_id', $staffId)
+            ->first();
+
+        if (!$examinerEntry) {
+            return response()->json(['message' => 'You are not registered as an examiner for this event.'], 403);
+        }
+
+        $presence = FinalDefenseExaminerPresence::where('applicant_id', $applicantId)
+            ->where('seminar_examiner_id', $examinerEntry->id)
+            ->first();
+
+        if (!$presence) {
+            return response()->json(['message' => 'You are not authorized to score this applicant. Please ensure your presence is marked.'], 403);
+        }
+
+        $presence->update([
+            'score' => $validated['score'],
+            'remark' => $validated['remark'],
+        ]);
+
+        return response()->json(['message' => 'Score submitted successfully.']);
     }
 
     public function getScoreGuide()

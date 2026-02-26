@@ -54,6 +54,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/room/{roomId}', [FinalDefenseController::class, 'getRoomDetail'])->name('room.detail');
             Route::post('/room/{roomId}/switch-moderator', [FinalDefenseController::class, 'switchModerator'])->name('room.switch_moderator');
             Route::post('/room/{roomId}/examiner/{examinerId}/presence', [FinalDefenseController::class, 'toggleExaminerPresence'])->name('room.examiner.presence');
+            Route::post('/applicant/{applicantId}/score', [FinalDefenseController::class, 'submitScore'])->name('applicant.score');
             Route::get('/score-guide', [FinalDefenseController::class, 'getScoreGuide'])->name('score_guide');
         });
     });
